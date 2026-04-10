@@ -137,6 +137,9 @@ EASS-PROJECT-Resturant-Finder/
 |-- uv.lock
 `-- README.md
 ```
+## REST Client Requests
+The file `restaurant_requests.http` contains sample HTTP requests for manually testing the API endpoints.
+It can be used with the REST Client extension in VS Code.
 
 ## Current Status
 This stage includes the backend only.
