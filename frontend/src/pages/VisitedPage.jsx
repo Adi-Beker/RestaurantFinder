@@ -81,7 +81,7 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
       setMessage(
         editingId !== null
           ? "Failed to update visited restaurant."
-          : "Failed to create visited restaurant."
+          : error.message || "Failed to create visited restaurant."
       );
     }
   }
@@ -106,6 +106,9 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
   return (
     <section className="section-card">
       <h2>My Visited Restaurants</h2>
+      <p className="section-subtitle">
+        Manage the restaurants you already visited.
+      </p>
 
       {message && <div className="message-box">{message}</div>}
 
@@ -200,7 +203,9 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
       </form>
 
       {visitedRestaurants.length === 0 ? (
-        <p>No visited restaurants yet.</p>
+        <div className="empty-state">
+          You have not added any visited restaurants yet.
+        </div>
       ) : (
         <div className="visited-list">
           {visitedRestaurants.map((restaurant) => (
@@ -208,11 +213,13 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
               <div>
                 <strong>{restaurant.name}</strong>
                 <p>
-                  {restaurant.city}, {restaurant.country} | {restaurant.cuisine}
+                  {restaurant.city}, {restaurant.country}
                 </p>
-                <p>
-                  Price Level: {restaurant.price_level} | Rating: {restaurant.rating}
-                </p>
+                <div className="card-meta">
+                  <span className="meta-badge">{restaurant.cuisine}</span>
+                  <span className="meta-badge">Price {restaurant.price_level}/5</span>
+                  <span className="meta-badge">Rating {restaurant.rating}/5</span>
+                </div>
               </div>
 
               <div className="item-actions">

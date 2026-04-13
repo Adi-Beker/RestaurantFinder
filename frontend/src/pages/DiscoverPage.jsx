@@ -5,6 +5,7 @@ import { topRestaurants } from "../data/restaurantsData";
 function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedCountry, setSelectedCountry] = useState("All");
+  const [selectedCuisine, setSelectedCuisine] = useState("All");
   const [message, setMessage] = useState("");
 
   const countries = useMemo(() => {
@@ -12,6 +13,13 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
       ...new Set(topRestaurants.map((restaurant) => restaurant.country)),
     ];
     return ["All", ...uniqueCountries];
+  }, []);
+
+  const cuisines = useMemo(() => {
+    const uniqueCuisines = [
+      ...new Set(topRestaurants.map((restaurant) => restaurant.cuisine)),
+    ];
+    return ["All", ...uniqueCuisines];
   }, []);
 
   const filteredRestaurants = useMemo(() => {
@@ -23,9 +31,12 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
       const matchesCountry =
         selectedCountry === "All" || restaurant.country === selectedCountry;
 
-      return matchesSearch && matchesCountry;
+      const matchesCuisine =
+        selectedCuisine === "All" || restaurant.cuisine === selectedCuisine;
+
+      return matchesSearch && matchesCountry && matchesCuisine;
     });
-  }, [searchTerm, selectedCountry]);
+  }, [searchTerm, selectedCountry, selectedCuisine]);
 
   function isAlreadyVisited(restaurant) {
     return visitedRestaurants.some(
@@ -69,6 +80,9 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
   return (
     <section className="section-card">
       <h2>Discover Restaurants</h2>
+      <p className="section-subtitle">
+        Explore recommended restaurants and save the ones you already visited.
+      </p>
 
       {message && <div className="message-box">{message}</div>}
 
@@ -90,14 +104,27 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
             </option>
           ))}
         </select>
+
+        <select
+          value={selectedCuisine}
+          onChange={(event) => setSelectedCuisine(event.target.value)}
+        >
+          {cuisines.map((cuisine) => (
+            <option key={cuisine} value={cuisine}>
+              {cuisine}
+            </option>
+          ))}
+        </select>
       </div>
 
-      <p>
-        <strong>Results:</strong> {filteredRestaurants.length}
-      </p>
+      <div className="results-row">
+        <div className="results-pill">{filteredRestaurants.length} results</div>
+      </div>
 
       {filteredRestaurants.length === 0 ? (
-        <p>No restaurants match your current search and filter.</p>
+        <div className="empty-state">
+          No restaurants match your current search and filter.
+        </div>
       ) : (
         <div className="cards-grid">
           {filteredRestaurants.map((restaurant) => {
@@ -106,15 +133,21 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
             return (
               <div key={restaurant.id} className="restaurant-card">
                 <h3>{restaurant.name}</h3>
+
                 <p>
                   <strong>Location:</strong> {restaurant.city}, {restaurant.country}
                 </p>
-                <p>
-                  <strong>Cuisine:</strong> {restaurant.cuisine}
-                </p>
+
+                <div className="card-meta">
+                  <span className="meta-badge">{restaurant.cuisine}</span>
+                </div>
 
                 <button
-                  className={alreadyVisited ? "secondary-button" : "primary-button"}
+                  className={
+                    alreadyVisited
+                      ? "secondary-button card-button"
+                      : "primary-button card-button"
+                  }
                   onClick={() => handleAddToVisited(restaurant)}
                   disabled={alreadyVisited}
                 >
