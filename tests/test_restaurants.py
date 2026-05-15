@@ -227,3 +227,96 @@ def test_create_restaurant_rejects_missing_name(client):
     )
 
     assert response.status_code == 422
+
+
+def test_create_duplicate_restaurant_returns_409(client):
+    payload = {
+        "name": "La Piazza",
+        "city": "Tel Aviv",
+        "country": "Israel",
+        "cuisine": "Italian",
+        "price_level": 3,
+        "rating": 4.5,
+        "is_open": True,
+    }
+
+    client.post("/restaurants", json=payload)
+    response = client.post("/restaurants", json=payload)
+
+    assert response.status_code == 409
+    assert "already exists" in response.json()["detail"]
+
+
+def test_create_duplicate_is_case_insensitive(client):
+    client.post(
+        "/restaurants",
+        json={
+            "name": "La Piazza",
+            "city": "Tel Aviv",
+            "country": "Israel",
+            "cuisine": "Italian",
+            "price_level": 3,
+            "rating": 4.5,
+            "is_open": True,
+        },
+    )
+
+    response = client.post(
+        "/restaurants",
+        json={
+            "name": "la piazza",
+            "city": "tel aviv",
+            "country": "israel",
+            "cuisine": "Italian",
+            "price_level": 3,
+            "rating": 4.5,
+            "is_open": True,
+        },
+    )
+
+    assert response.status_code == 409
+
+
+def test_update_to_duplicate_returns_409(client):
+    client.post(
+        "/restaurants",
+        json={
+            "name": "La Piazza",
+            "city": "Tel Aviv",
+            "country": "Israel",
+            "cuisine": "Italian",
+            "price_level": 3,
+            "rating": 4.5,
+            "is_open": True,
+        },
+    )
+
+    create_response = client.post(
+        "/restaurants",
+        json={
+            "name": "Tokyo Table",
+            "city": "Tokyo",
+            "country": "Japan",
+            "cuisine": "Japanese",
+            "price_level": 4,
+            "rating": 4.8,
+            "is_open": True,
+        },
+    )
+
+    restaurant_id = create_response.json()["id"]
+
+    response = client.put(
+        f"/restaurants/{restaurant_id}",
+        json={
+            "name": "La Piazza",
+            "city": "Tel Aviv",
+            "country": "Israel",
+            "cuisine": "Italian",
+            "price_level": 3,
+            "rating": 4.5,
+            "is_open": True,
+        },
+    )
+
+    assert response.status_code == 409

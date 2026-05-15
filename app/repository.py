@@ -1,21 +1,93 @@
 from __future__ import annotations
 
+import sqlite3
+
 from app.models import Restaurant, RestaurantCreate
 
 
 class RestaurantRepository:
-    def __init__(self) -> None:
-        self._restaurants: list[Restaurant] = []
-        self._next_id = 1
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._conn = conn
+
+    # ── Queries ──────────────────────────────────────────────────────────────
 
     def list(self) -> list[Restaurant]:
-        return self._restaurants.copy()
+        rows = self._conn.execute(
+            "SELECT * FROM restaurants ORDER BY id"
+        ).fetchall()
+        return [_to_restaurant(row) for row in rows]
 
     def get(self, restaurant_id: int) -> Restaurant | None:
-        for restaurant in self._restaurants:
-            if restaurant.id == restaurant_id:
-                return restaurant
-        return None
+        row = self._conn.execute(
+            "SELECT * FROM restaurants WHERE id = ?", (restaurant_id,)
+        ).fetchone()
+        return _to_restaurant(row) if row else None
+
+    def create(self, payload: RestaurantCreate) -> Restaurant:
+        if self._is_duplicate(payload.name, payload.city, payload.country):
+            raise ValueError("Restaurant already exists in your visited list")
+
+        cursor = self._conn.execute(
+            """
+            INSERT INTO restaurants (name, city, country, cuisine, price_level, rating, is_open)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                payload.name,
+                payload.city,
+                payload.country,
+                payload.cuisine,
+                payload.price_level,
+                payload.rating,
+                int(payload.is_open),
+            ),
+        )
+        self._conn.commit()
+        row = self._conn.execute(
+            "SELECT * FROM restaurants WHERE id = ?", (cursor.lastrowid,)
+        ).fetchone()
+        return _to_restaurant(row)
+
+    def update(self, restaurant_id: int, payload: RestaurantCreate) -> Restaurant | None:
+        if self.get(restaurant_id) is None:
+            return None
+
+        if self._is_duplicate(payload.name, payload.city, payload.country, exclude_id=restaurant_id):
+            raise ValueError("Restaurant already exists in your visited list")
+
+        self._conn.execute(
+            """
+            UPDATE restaurants
+               SET name=?, city=?, country=?, cuisine=?, price_level=?, rating=?, is_open=?
+             WHERE id=?
+            """,
+            (
+                payload.name,
+                payload.city,
+                payload.country,
+                payload.cuisine,
+                payload.price_level,
+                payload.rating,
+                int(payload.is_open),
+                restaurant_id,
+            ),
+        )
+        self._conn.commit()
+        return self.get(restaurant_id)
+
+    def delete(self, restaurant_id: int) -> bool:
+        cursor = self._conn.execute(
+            "DELETE FROM restaurants WHERE id = ?", (restaurant_id,)
+        )
+        self._conn.commit()
+        return cursor.rowcount > 0
+
+    def clear(self) -> None:
+        """Delete all rows. Used by tests to reset state between runs."""
+        self._conn.execute("DELETE FROM restaurants")
+        self._conn.commit()
+
+    # ── Helpers ──────────────────────────────────────────────────────────────
 
     def _is_duplicate(
         self,
@@ -24,73 +96,39 @@ class RestaurantRepository:
         country: str,
         exclude_id: int | None = None,
     ) -> bool:
-        normalized_name = name.strip().casefold()
-        normalized_city = city.strip().casefold()
-        normalized_country = country.strip().casefold()
+        """Return True if a restaurant with the same name/city/country exists."""
+        if exclude_id is None:
+            row = self._conn.execute(
+                """
+                SELECT 1 FROM restaurants
+                 WHERE LOWER(name)    = LOWER(?)
+                   AND LOWER(city)    = LOWER(?)
+                   AND LOWER(country) = LOWER(?)
+                """,
+                (name, city, country),
+            ).fetchone()
+        else:
+            row = self._conn.execute(
+                """
+                SELECT 1 FROM restaurants
+                 WHERE LOWER(name)    = LOWER(?)
+                   AND LOWER(city)    = LOWER(?)
+                   AND LOWER(country) = LOWER(?)
+                   AND id != ?
+                """,
+                (name, city, country, exclude_id),
+            ).fetchone()
+        return row is not None
 
-        for restaurant in self._restaurants:
-            if exclude_id is not None and restaurant.id == exclude_id:
-                continue
 
-            if (
-                restaurant.name.strip().casefold() == normalized_name
-                and restaurant.city.strip().casefold() == normalized_city
-                and restaurant.country.strip().casefold() == normalized_country
-            ):
-                return True
-
-        return False
-
-    def create(self, payload: RestaurantCreate) -> Restaurant:
-        if self._is_duplicate(payload.name, payload.city, payload.country):
-            raise ValueError("Restaurant already exists in your visited list")
-
-        restaurant = Restaurant(
-            id=self._next_id,
-            name=payload.name,
-            city=payload.city,
-            country=payload.country,
-            cuisine=payload.cuisine,
-            price_level=payload.price_level,
-            rating=payload.rating,
-            is_open=payload.is_open,
-        )
-        self._restaurants.append(restaurant)
-        self._next_id += 1
-        return restaurant
-
-    def update(self, restaurant_id: int, payload: RestaurantCreate) -> Restaurant | None:
-        for index, restaurant in enumerate(self._restaurants):
-            if restaurant.id == restaurant_id:
-                if self._is_duplicate(
-                    payload.name,
-                    payload.city,
-                    payload.country,
-                    exclude_id=restaurant_id,
-                ):
-                    raise ValueError("Restaurant already exists in your visited list")
-
-                updated_restaurant = Restaurant(
-                    id=restaurant_id,
-                    name=payload.name,
-                    city=payload.city,
-                    country=payload.country,
-                    cuisine=payload.cuisine,
-                    price_level=payload.price_level,
-                    rating=payload.rating,
-                    is_open=payload.is_open,
-                )
-                self._restaurants[index] = updated_restaurant
-                return updated_restaurant
-        return None
-
-    def delete(self, restaurant_id: int) -> bool:
-        for index, restaurant in enumerate(self._restaurants):
-            if restaurant.id == restaurant_id:
-                del self._restaurants[index]
-                return True
-        return False
-
-    def clear(self) -> None:
-        self._restaurants.clear()
-        self._next_id = 1
+def _to_restaurant(row: sqlite3.Row) -> Restaurant:
+    return Restaurant(
+        id=row["id"],
+        name=row["name"],
+        city=row["city"],
+        country=row["country"],
+        cuisine=row["cuisine"],
+        price_level=row["price_level"],
+        rating=row["rating"],
+        is_open=bool(row["is_open"]),
+    )

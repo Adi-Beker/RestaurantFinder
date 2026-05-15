@@ -3,160 +3,140 @@
 ## Description
 Restaurant Finder is a full-stack web application for discovering recommended restaurants and managing a personal list of restaurants the user has visited.
 
-The project started as a FastAPI backend and was later extended with a React frontend that communicates only with the backend API.
+The project is built with a FastAPI backend and a React frontend that communicates only with the backend API.
 
-## Current Stage
-This repository currently includes:
-- **Stage A**: FastAPI backend
-- **Stage B**: React frontend
+---
 
-Stage A includes:
-- FastAPI backend
-- full restaurant CRUD operations
-- input validation with Pydantic
-- dependency injection
-- automated tests with pytest
-- Docker support
+## EX2 Scope
+This submission covers:
+- **Stage A**: FastAPI backend with CRUD, validation, duplicate prevention, and automated tests
+- **Stage B**: React frontend with Discover and My Visited pages
+- **Persistence**: SQLite database — data survives backend restarts
 
-Stage B includes:
-- React frontend with Vite
-- Discover page for browsing recommended restaurants
-- My Visited page for managing restaurants the user has visited
-- search and filtering in the discovery section
-- create, update, and delete operations through the UI
-- Docker Compose support for running frontend and backend together
+Not included (out of scope for EX2):
+- authentication or user accounts
+- external database services such as PostgreSQL or MySQL
+- Redis, background workers, or EX3-style service orchestration
 
-## Prerequisites
-Before running the project, make sure the following tools are installed:
+The EX2 "small extra" is implemented through cuisine filtering and duplicate prevention in the visited list flow.
 
-- Python 3.13
-- `uv`
-- Node.js and npm
-- Docker Desktop, if you want to run the project in containers
+---
 
 ## Features
 
 ### Backend
-- FastAPI backend
-- CRUD operations for restaurants
-- input validation with Pydantic
-- in-memory repository
-- dependency injection
-- Swagger/OpenAPI documentation
-- automated tests with pytest
+- FastAPI REST API
+- full CRUD for restaurants (`GET`, `POST`, `PUT`, `DELETE`)
+- input validation with Pydantic (required fields, price_level 1–5, rating 1.0–5.0)
+- text normalization (trim + title-case on name, city, country, cuisine)
+- duplicate prevention — same name + city + country rejected with 409, case-insensitive
+- SQLite persistence via Python's built-in `sqlite3` — no extra packages needed
+- dependency injection pattern for the repository
+- Swagger / OpenAPI docs at `/docs`
+- automated tests with pytest (16 tests, all using isolated in-memory SQLite)
 
 ### Frontend
-- React frontend with Vite
-- navigation bar
-- Discover page
-- My Visited page
-- search by restaurant name
-- filter by country
-- add a restaurant to My Visited
-- create visited restaurants manually
-- update visited restaurants
-- delete visited restaurants
+- React 19 + Vite
+- Navbar with active-link highlighting
+- **Discover page**: browse a curated list of top restaurants, search by name, filter by country, filter by cuisine, add to My Visited
+- **My Visited page**: view, create, edit, and delete visited restaurants; shows cuisine, price level, rating, and open/closed status per entry
+- duplicate restaurants shown as disabled in Discover once added
+- error and success feedback messages in the UI
 
-### Run Support
-- Docker support
-- Docker Compose support for frontend and backend together
+### Infrastructure
+- Docker support for backend and frontend independently
+- Docker Compose to run both together with a single command
+- named Docker volume so data persists across container restarts
 
-## Technologies
-- Python
-- FastAPI
-- Pydantic
-- pytest
-- React
-- Vite
-- JavaScript
-- Docker
-- Docker Compose
-- uv
+---
+
+## Prerequisites
+- Python 3.13
+- [`uv`](https://docs.astral.sh/uv/) (Python package manager)
+- Node.js and npm
+- Docker Desktop (only needed for Docker Compose)
+
+---
 
 ## Run the Backend Locally
+
 From the project root:
 
 ```bash
 uv run uvicorn app.main:app --reload
 ```
 
-The backend will run at:
+The backend starts at `http://127.0.0.1:8000`.
 
-```text
-http://127.0.0.1:8000
-```
+The SQLite database file (`restaurants.db`) is created automatically at the project root on the first request. It is excluded from Git via `.gitignore`.
+
+---
 
 ## Backend API Documentation
-FastAPI provides interactive Swagger/OpenAPI documentation.
 
-Open:
+FastAPI generates interactive docs automatically:
 
-```text
+```
 http://127.0.0.1:8000/docs
 ```
 
+---
+
 ## Run Backend Tests
-Run all backend tests with:
 
 ```bash
-uv run pytest tests -v
+uv run pytest tests/ -v
 ```
 
+All 16 tests pass. Each test uses a fresh isolated in-memory SQLite database — the on-disk `restaurants.db` is never touched by the test suite.
+
+---
+
 ## Run the Frontend Locally
-From the `frontend` folder:
+
+From the `frontend/` directory:
 
 ```bash
 npm install
 npm run dev
 ```
 
-The frontend will run at:
+The frontend starts at `http://127.0.0.1:5173`.
 
-```text
-http://127.0.0.1:5173
-```
+The frontend expects the backend to be running at `http://127.0.0.1:8000`. This is the default and requires no configuration.
 
-## Run with Docker Compose
+---
+
+## Run Both Together with Docker Compose
+
 From the project root:
 
 ```bash
 docker compose up --build
 ```
 
-After the containers start:
+| Service  | URL                        |
+|----------|----------------------------|
+| Frontend | http://127.0.0.1:5173      |
+| Backend  | http://127.0.0.1:8000      |
+| API docs | http://127.0.0.1:8000/docs |
 
-Frontend:
+In Docker, the database is stored at `/data/restaurants.db` inside the backend container, backed by the `restaurant_data` named volume. Data survives `docker compose down` (use `docker compose down --volumes` to also remove the data).
 
-```text
-http://127.0.0.1:5173
-```
+---
 
-Backend:
+## API Endpoints
 
-```text
-http://127.0.0.1:8000
-```
+| Method   | Path                        | Description                  |
+|----------|-----------------------------|------------------------------|
+| `GET`    | `/health`                   | Health check                 |
+| `GET`    | `/restaurants`              | List all restaurants         |
+| `POST`   | `/restaurants`              | Create a restaurant          |
+| `GET`    | `/restaurants/{id}`         | Get a restaurant by ID       |
+| `PUT`    | `/restaurants/{id}`         | Update a restaurant          |
+| `DELETE` | `/restaurants/{id}`         | Delete a restaurant          |
 
-Backend API Docs:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-## Available Backend Endpoints
-
-### Health Check
-- `GET /health`
-
-### Restaurants
-- `GET /restaurants`
-- `POST /restaurants`
-- `GET /restaurants/{restaurant_id}`
-- `PUT /restaurants/{restaurant_id}`
-- `DELETE /restaurants/{restaurant_id}`
-
-## Example Request Body
-Example JSON for creating a restaurant:
+### Example request body
 
 ```json
 {
@@ -170,65 +150,98 @@ Example JSON for creating a restaurant:
 }
 ```
 
+Text fields are normalized server-side (trimmed and title-cased). Submitting `"city": "tel aviv"` stores and returns `"city": "Tel Aviv"`.
+
+---
+
+## Database
+
+The backend uses **SQLite** via Python's built-in `sqlite3` module. No extra packages or setup is required.
+
+| Context          | Database location                                    |
+|------------------|------------------------------------------------------|
+| Local dev        | `restaurants.db` in the project root (auto-created)  |
+| Docker Compose   | `/data/restaurants.db` in the container (named volume) |
+| Tests            | `:memory:` — fresh isolated DB per test, never on disk |
+
+`restaurants.db` is listed in `.gitignore` and should not be committed.
+
+---
+
 ## Project Structure
+
 ```text
-EASS-PROJECT-Restaurant-Finder/
+RestaurantFinder/
 |-- app/
 |   |-- __init__.py
-|   |-- main.py
-|   |-- models.py
-|   |-- repository.py
-|   `-- dependencies.py
+|   |-- main.py            # FastAPI app and routes
+|   |-- models.py          # Pydantic models
+|   |-- database.py        # SQLite connection and schema init
+|   |-- repository.py      # CRUD queries
+|   `-- dependencies.py    # FastAPI dependency injection
 |-- frontend/
-|   |-- public/
 |   |-- src/
 |   |   |-- components/
+|   |   |   `-- Navbar.jsx
 |   |   |-- data/
+|   |   |   `-- restaurantsData.js   # curated discover list
 |   |   |-- pages/
-|   |   |-- api.js
-|   |   |-- App.css
+|   |   |   |-- DiscoverPage.jsx
+|   |   |   `-- VisitedPage.jsx
+|   |   |-- api.js         # fetch wrappers for backend calls
 |   |   |-- App.jsx
+|   |   |-- App.css
 |   |   `-- main.jsx
-|   |-- .gitignore
-|   |-- eslint.config.js
 |   |-- index.html
-|   |-- package-lock.json
 |   |-- package.json
 |   `-- vite.config.js
 |-- tests/
 |   |-- __init__.py
-|   |-- conftest.py
+|   |-- conftest.py        # per-test in-memory SQLite fixture
 |   `-- test_restaurants.py
 |-- .dockerignore
 |-- .gitignore
 |-- backend.Dockerfile
-|-- docker-compose.yml
 |-- frontend.Dockerfile
-|-- plan.md
+|-- docker-compose.yml
 |-- pyproject.toml
 |-- README.md
+|-- plan.md
 |-- restaurant_requests.http
 `-- uv.lock
 ```
 
+---
+
 ## REST Client Requests
-The file `restaurant_requests.http` contains sample HTTP requests for manually testing the backend API endpoints.
-It can be used with the REST Client extension in VS Code.
 
-## Current Status
-The project currently supports:
-- backend CRUD operations for restaurants
-- validation and automated backend tests
-- a React frontend for restaurant discovery
-- a personal visited restaurants list
-- local frontend and backend development
-- Docker Compose execution for the full system
+`restaurant_requests.http` contains sample HTTP requests for all endpoints. Use it with the REST Client extension in VS Code.
 
-At this stage:
-- visited restaurants are stored in memory
-- there is no persistent database yet
-- authentication is not included
-- advanced live external integrations are not included
+---
+
+## AI Assistance
+
+This project was developed with assistance from **Claude** (Anthropic), an AI coding assistant, via the Claude Code CLI tool.
+
+### What AI was used for
+
+AI assistance was used for the following tasks across EX2:
+
+- **SQLite migration**: designing and implementing `app/database.py`, rewriting `app/repository.py` from in-memory to SQLite queries, and updating `app/dependencies.py` with lazy connection initialization
+- **Test infrastructure**: updating `tests/conftest.py` to use per-test in-memory SQLite databases with FastAPI `dependency_overrides`
+- **UI/UX improvements**: refining `App.css` with a restaurant-themed color palette (warm amber, espresso tones), updating `DiscoverPage.jsx` and `VisitedPage.jsx` with labeled form fields and better layout, and adding Playfair Display typography
+- **Documentation**: drafting sections of `README.md` and `plan.md`
+
+### How outputs were verified
+
+AI-generated code was reviewed and tested before being accepted into the project:
+
+- `uv run pytest tests/ -v` was run after every backend change — all 16 tests pass
+- The backend was verified via the Swagger UI at `/docs` and the `restaurant_requests.http` file
+- The frontend was exercised manually through the Discover and My Visited pages, including search, filters, add, edit, delete, and duplicate prevention flows
+- Docker Compose was verified with `docker compose up --build`
+
+---
 
 ## Author
 Adi Beker

@@ -6,6 +6,10 @@ services:
     container_name: restaurant-finder-backend
     ports:
       - "8000:8000"
+    environment:
+      - DB_PATH=/data/restaurants.db
+    volumes:
+      - restaurant_data:/data
 
   frontend:
     build:
@@ -16,3 +20,6 @@ services:
       - "5173:5173"
     depends_on:
       - backend
+
+volumes:
+  restaurant_data:

@@ -3,12 +3,11 @@
 ## 1. Project Overview
 Restaurant Finder is a web application for discovering recommended restaurants and managing a personal list of restaurants the user has visited.
 
-The project is planned as a multi-stage system:
+The project is built as a multi-stage system:
 - Stage A: backend development with FastAPI
-- Stage B: frontend development with React
-- Stage C: persistent storage and a more complete local system
+- Stage B: frontend development with React, including SQLite persistence
 
-The goal is to build a clean and understandable project that can grow gradually while keeping the system simple.
+The goal is to build a clean and understandable full-stack project that keeps the system simple and easy to run locally.
 
 ---
 
@@ -22,6 +21,7 @@ The application allows users to:
 - explore recommended restaurants
 - search restaurants by name
 - filter restaurants by country
+- filter restaurants by cuisine
 - add restaurants to a personal visited list
 - create visited restaurants manually
 - update visited restaurant details
@@ -61,23 +61,27 @@ Validation rules:
 - `rating` must be between 1.0 and 5.0
 - `is_open` must be a boolean value
 
-Basic normalization may also be applied, such as:
-- trimming extra spaces
-- formatting city, country, and cuisine fields consistently
+Normalization applied on input:
+- trimming extra spaces from text fields
+- title-casing city, country, and cuisine fields
+
+Duplicate prevention:
+- a restaurant with the same name, city, and country cannot be added twice
+- duplicate check is case-insensitive
 
 ---
 
 ## 5. Design Approach
 The project follows a simple layered structure:
 
-- backend API layer
-- model/schema layer
-- repository layer
-- frontend UI layer
+- backend API layer (`app/main.py`)
+- model/schema layer (`app/models.py`)
+- database layer (`app/database.py`)
+- repository layer (`app/repository.py`)
+- dependency injection layer (`app/dependencies.py`)
+- frontend UI layer (`frontend/src/`)
 
-The backend handles API logic, the repository handles data access, and the frontend communicates only with the backend API.
-
-This keeps the project clear and supports separation of responsibilities.
+The backend handles API logic, the repository handles all SQLite queries, and the frontend communicates only with the backend API.
 
 ---
 
@@ -86,41 +90,36 @@ This keeps the project clear and supports separation of responsibilities.
 ### Stage A – Backend
 Stage A focuses on building the backend with FastAPI.
 
-Completed goals:
-- create a working FastAPI application
-- implement restaurant CRUD operations
-- validate input data
-- return proper HTTP status codes
-- write automated tests
-- support Docker execution
+Completed:
+- working FastAPI application
+- restaurant CRUD operations
+- input validation with Pydantic
+- duplicate prevention (case-insensitive, by name + city + country)
+- proper HTTP status codes
+- automated tests with pytest
+- Docker support
 
-At this stage, storage is in memory only.
+### Stage B – Frontend and Persistence
+Stage B focuses on building a React frontend and adding persistent storage.
 
-### Stage B – Frontend
-Stage B focuses on building a React frontend.
-
-Completed or current goals:
-- build a separate frontend application
-- provide a Discover page for restaurant recommendations
-- support search by restaurant name
-- support filtering by country
-- provide a My Visited page
-- support create, update, and delete operations through the UI
-- connect the frontend only to the backend API
-- support Docker Compose for running frontend and backend together
-
-### Stage C – Extended Version
-Stage C focuses on improving the project into a more complete local system.
-
-Planned goals:
-- replace in-memory storage with persistent storage
-- improve the UI and overall user experience
-- improve documentation and project setup
-- add one meaningful enhancement such as richer filtering or improved restaurant data management
+Completed:
+- React frontend with Vite
+- Discover page for restaurant recommendations
+- search by restaurant name
+- filter by country
+- filter by cuisine
+- My Visited page for managing the visited list
+- create, update, and delete operations through the UI
+- add a restaurant from Discover to My Visited
+- duplicate prevention reflected in the UI
+- SQLite persistence via Python's built-in `sqlite3` — data survives backend restarts
+- each test runs against an isolated in-memory SQLite database
+- Docker Compose for running frontend and backend together
+- named Docker volume so container data survives restarts
 
 ---
 
-## 7. Planned API Endpoints
+## 7. API Endpoints
 
 ### Health
 - `GET /health`
@@ -132,93 +131,103 @@ Planned goals:
 - `PUT /restaurants/{restaurant_id}`
 - `DELETE /restaurants/{restaurant_id}`
 
-These endpoints are enough for the current version of the project.
-
 ---
 
 ## 8. Frontend Features
 
 ### Discover Page
-The Discover page allows users to:
-- browse recommended restaurants
-- search restaurants by name
-- filter restaurants by country
+- browse recommended restaurants (hardcoded curated list)
+- search by restaurant name
+- filter by country
+- filter by cuisine
 - add a restaurant to the visited list
+- restaurants already in the visited list are shown as disabled
 
 ### My Visited Page
-The My Visited page allows users to:
 - view all visited restaurants
-- create a visited restaurant manually
+- create a visited restaurant manually via form
 - update an existing visited restaurant
 - delete a visited restaurant
+- open/closed status badge per restaurant
 
 ### Navigation
-The frontend includes a simple navigation bar with:
-- Discover
-- My Visited
+- navigation bar with Discover and My Visited links
+- active link is visually highlighted
 
 ---
 
-## 9. Testing Plan
+## 9. Testing
 The backend includes automated tests for:
 - health endpoint
-- create restaurant
+- create restaurant (201 + correct payload)
 - list restaurants
 - get restaurant by id
 - update restaurant
 - delete restaurant
-- validation errors
-- missing restaurant handling
+- duplicate prevention (409 on exact match and case-insensitive match)
+- duplicate update prevention (409)
+- missing restaurant (404 on get, update, delete)
+- validation errors (422 for bad price_level, rating, missing fields)
 
-The purpose of testing is to keep the backend stable and reliable.
+Tests use an isolated in-memory SQLite database per test. The on-disk `restaurants.db` is never touched by the test suite.
 
 ---
 
 ## 10. Technology Stack
-Technologies used or planned:
-- Python
+
+- Python 3.13
 - FastAPI
 - Pydantic
+- SQLite (Python stdlib `sqlite3`)
 - pytest
-- React
+- React 19
 - Vite
+- JavaScript
 - Docker
 - Docker Compose
 - uv
 
-Possible later addition:
-- SQLite or another lightweight database
-
 ---
 
 ## 11. Project Structure
-A possible project structure is:
 
 ```text
-restaurant_finder/
+RestaurantFinder/
 |-- app/
+|   |-- __init__.py
 |   |-- main.py
 |   |-- models.py
+|   |-- database.py
 |   |-- repository.py
 |   `-- dependencies.py
 |-- frontend/
 |   |-- src/
 |   |   |-- components/
+|   |   |   `-- Navbar.jsx
 |   |   |-- data/
+|   |   |   `-- restaurantsData.js
 |   |   |-- pages/
+|   |   |   |-- DiscoverPage.jsx
+|   |   |   `-- VisitedPage.jsx
 |   |   |-- api.js
 |   |   |-- App.jsx
 |   |   |-- App.css
 |   |   `-- main.jsx
+|   |-- index.html
 |   |-- package.json
 |   `-- vite.config.js
 |-- tests/
+|   |-- __init__.py
 |   |-- conftest.py
 |   `-- test_restaurants.py
+|-- .dockerignore
+|-- .gitignore
 |-- backend.Dockerfile
 |-- frontend.Dockerfile
 |-- docker-compose.yml
+|-- pyproject.toml
 |-- README.md
 |-- plan.md
-|-- pyproject.toml
+|-- restaurant_requests.http
 `-- uv.lock
+```

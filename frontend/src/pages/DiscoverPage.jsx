@@ -7,6 +7,7 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
   const [selectedCountry, setSelectedCountry] = useState("All");
   const [selectedCuisine, setSelectedCuisine] = useState("All");
   const [message, setMessage] = useState("");
+  const [messageIsError, setMessageIsError] = useState(false);
 
   const countries = useMemo(() => {
     const uniqueCountries = [
@@ -53,6 +54,7 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
   async function handleAddToVisited(restaurant) {
     if (isAlreadyVisited(restaurant)) {
       setMessage(`"${restaurant.name}" is already in My Visited Restaurants.`);
+      setMessageIsError(false);
       return;
     }
 
@@ -71,9 +73,11 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
 
       await onRestaurantAdded();
       setMessage(`"${restaurant.name}" was added to My Visited Restaurants.`);
+      setMessageIsError(false);
     } catch (error) {
       console.error(error);
       setMessage(error.message || "Failed to add restaurant to visited list.");
+      setMessageIsError(true);
     }
   }
 
@@ -84,37 +88,53 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
         Explore recommended restaurants and save the ones you already visited.
       </p>
 
-      {message && <div className="message-box">{message}</div>}
+      {message && (
+        <div className={`message-box${messageIsError ? " error" : ""}`}>
+          {message}
+        </div>
+      )}
 
       <div className="filters">
-        <input
-          type="text"
-          placeholder="Search by restaurant name"
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-        />
+        <div className="filter-group search">
+          <label htmlFor="search-input">Search</label>
+          <input
+            id="search-input"
+            type="text"
+            placeholder="Restaurant name..."
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+          />
+        </div>
 
-        <select
-          value={selectedCountry}
-          onChange={(event) => setSelectedCountry(event.target.value)}
-        >
-          {countries.map((country) => (
-            <option key={country} value={country}>
-              {country}
-            </option>
-          ))}
-        </select>
+        <div className="filter-group dropdown">
+          <label htmlFor="country-select">Country</label>
+          <select
+            id="country-select"
+            value={selectedCountry}
+            onChange={(event) => setSelectedCountry(event.target.value)}
+          >
+            {countries.map((country) => (
+              <option key={country} value={country}>
+                {country}
+              </option>
+            ))}
+          </select>
+        </div>
 
-        <select
-          value={selectedCuisine}
-          onChange={(event) => setSelectedCuisine(event.target.value)}
-        >
-          {cuisines.map((cuisine) => (
-            <option key={cuisine} value={cuisine}>
-              {cuisine}
-            </option>
-          ))}
-        </select>
+        <div className="filter-group dropdown">
+          <label htmlFor="cuisine-select">Cuisine</label>
+          <select
+            id="cuisine-select"
+            value={selectedCuisine}
+            onChange={(event) => setSelectedCuisine(event.target.value)}
+          >
+            {cuisines.map((cuisine) => (
+              <option key={cuisine} value={cuisine}>
+                {cuisine}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <div className="results-row">
@@ -123,7 +143,8 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
 
       {filteredRestaurants.length === 0 ? (
         <div className="empty-state">
-          No restaurants match your current search and filter.
+          <p>No restaurants match your current filters.</p>
+          <p>Try adjusting the search term or clearing a filter.</p>
         </div>
       ) : (
         <div className="cards-grid">
@@ -134,12 +155,17 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
               <div key={restaurant.id} className="restaurant-card">
                 <h3>{restaurant.name}</h3>
 
-                <p>
-                  <strong>Location:</strong> {restaurant.city}, {restaurant.country}
+                <p className="card-location">
+                  {restaurant.city}, {restaurant.country}
                 </p>
 
                 <div className="card-meta">
                   <span className="meta-badge">{restaurant.cuisine}</span>
+                  {restaurant.worldRank && (
+                    <span className="meta-badge">
+                      #{restaurant.worldRank} World
+                    </span>
+                  )}
                 </div>
 
                 <button
@@ -151,7 +177,7 @@ function DiscoverPage({ onRestaurantAdded, visitedRestaurants }) {
                   onClick={() => handleAddToVisited(restaurant)}
                   disabled={alreadyVisited}
                 >
-                  {alreadyVisited ? "Already in My Visited" : "Add to My Visited"}
+                  {alreadyVisited ? "Already Visited" : "Add to My Visited"}
                 </button>
               </div>
             );

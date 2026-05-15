@@ -16,7 +16,9 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
     is_open: true,
   });
   const [editingId, setEditingId] = useState(null);
+  const [editingName, setEditingName] = useState("");
   const [message, setMessage] = useState("");
+  const [messageIsError, setMessageIsError] = useState(false);
 
   function handleManualFormChange(event) {
     const { name, value, type, checked } = event.target;
@@ -38,11 +40,13 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
       is_open: true,
     });
     setEditingId(null);
+    setEditingName("");
   }
 
   function handleEditVisited(restaurant) {
     setMessage("");
     setEditingId(restaurant.id);
+    setEditingName(restaurant.name);
     setManualForm({
       name: restaurant.name,
       city: restaurant.city,
@@ -68,10 +72,12 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
 
       if (editingId !== null) {
         await updateVisitedRestaurant(editingId, payload);
-        setMessage("Visited restaurant updated successfully.");
+        setMessage("Restaurant updated successfully.");
+        setMessageIsError(false);
       } else {
         await createVisitedRestaurant(payload);
         setMessage("Restaurant added to your visited list.");
+        setMessageIsError(false);
       }
 
       resetForm();
@@ -80,9 +86,10 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
       console.error(error);
       setMessage(
         editingId !== null
-          ? "Failed to update visited restaurant."
-          : error.message || "Failed to create visited restaurant."
+          ? "Failed to update restaurant."
+          : error.message || "Failed to add restaurant."
       );
+      setMessageIsError(true);
     }
   }
 
@@ -97,9 +104,11 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
       }
 
       setMessage("Restaurant removed from your visited list.");
+      setMessageIsError(false);
     } catch (error) {
       console.error(error);
       setMessage("Failed to delete restaurant.");
+      setMessageIsError(true);
     }
   }
 
@@ -107,49 +116,76 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
     <section className="section-card">
       <h2>My Visited Restaurants</h2>
       <p className="section-subtitle">
-        Manage the restaurants you already visited.
+        Manage the restaurants you have already visited.
       </p>
 
-      {message && <div className="message-box">{message}</div>}
+      {message && (
+        <div className={`message-box${messageIsError ? " error" : ""}`}>
+          {message}
+        </div>
+      )}
+
+      <p className={`form-heading${editingId !== null ? " editing" : ""}`}>
+        {editingId !== null ? `Editing: ${editingName}` : "Add a restaurant"}
+      </p>
 
       <form className="visited-form" onSubmit={handleManualSubmit}>
-        <input
-          type="text"
-          name="name"
-          placeholder="Restaurant name"
-          value={manualForm.name}
-          onChange={handleManualFormChange}
-          required
-        />
-        <input
-          type="text"
-          name="city"
-          placeholder="City"
-          value={manualForm.city}
-          onChange={handleManualFormChange}
-          required
-        />
-        <input
-          type="text"
-          name="country"
-          placeholder="Country"
-          value={manualForm.country}
-          onChange={handleManualFormChange}
-          required
-        />
-        <input
-          type="text"
-          name="cuisine"
-          placeholder="Cuisine"
-          value={manualForm.cuisine}
-          onChange={handleManualFormChange}
-          required
-        />
+        <div className="field-with-label">
+          <label htmlFor="field-name">Name</label>
+          <input
+            id="field-name"
+            type="text"
+            name="name"
+            placeholder="e.g. Osteria Francescana"
+            value={manualForm.name}
+            onChange={handleManualFormChange}
+            required
+          />
+        </div>
 
         <div className="field-with-label">
-          <label htmlFor="price_level">Price Level (1-5)</label>
+          <label htmlFor="field-city">City</label>
           <input
-            id="price_level"
+            id="field-city"
+            type="text"
+            name="city"
+            placeholder="e.g. Rome"
+            value={manualForm.city}
+            onChange={handleManualFormChange}
+            required
+          />
+        </div>
+
+        <div className="field-with-label">
+          <label htmlFor="field-country">Country</label>
+          <input
+            id="field-country"
+            type="text"
+            name="country"
+            placeholder="e.g. Italy"
+            value={manualForm.country}
+            onChange={handleManualFormChange}
+            required
+          />
+        </div>
+
+        <div className="field-with-label">
+          <label htmlFor="field-cuisine">Cuisine</label>
+          <input
+            id="field-cuisine"
+            type="text"
+            name="cuisine"
+            placeholder="e.g. Italian"
+            value={manualForm.cuisine}
+            onChange={handleManualFormChange}
+            required
+          />
+        </div>
+
+        <div className="field-with-label">
+          <label htmlFor="field-price">Price Level (1–5)</label>
+          <input
+            id="field-price"
             type="number"
             name="price_level"
             min="1"
@@ -161,9 +197,9 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
         </div>
 
         <div className="field-with-label">
-          <label htmlFor="rating">Rating (1-5)</label>
+          <label htmlFor="field-rating">Rating (1–5)</label>
           <input
-            id="rating"
+            id="field-rating"
             type="number"
             name="rating"
             min="1"
@@ -175,19 +211,22 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
           />
         </div>
 
-        <label className="checkbox-label">
-          <input
-            type="checkbox"
-            name="is_open"
-            checked={manualForm.is_open}
-            onChange={handleManualFormChange}
-          />
-          Is Open
-        </label>
+        <div className="field-with-label">
+          <label>Status</label>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              name="is_open"
+              checked={manualForm.is_open}
+              onChange={handleManualFormChange}
+            />
+            Currently open
+          </label>
+        </div>
 
         <div className="form-actions">
           <button type="submit" className="primary-button">
-            {editingId !== null ? "Update Visited Restaurant" : "Add Visited Restaurant"}
+            {editingId !== null ? "Save Changes" : "Add Restaurant"}
           </button>
 
           {editingId !== null && (
@@ -196,7 +235,7 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
               className="secondary-button"
               onClick={resetForm}
             >
-              Cancel Edit
+              Cancel
             </button>
           )}
         </div>
@@ -204,42 +243,61 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
 
       {visitedRestaurants.length === 0 ? (
         <div className="empty-state">
-          You have not added any visited restaurants yet.
+          <p>You have not added any visited restaurants yet.</p>
+          <p>Use the form above or add one from the Discover page.</p>
         </div>
       ) : (
-        <div className="visited-list">
-          {visitedRestaurants.map((restaurant) => (
-            <div key={restaurant.id} className="visited-item">
-              <div>
-                <strong>{restaurant.name}</strong>
-                <p>
-                  {restaurant.city}, {restaurant.country}
-                </p>
-                <div className="card-meta">
-                  <span className="meta-badge">{restaurant.cuisine}</span>
-                  <span className="meta-badge">Price {restaurant.price_level}/5</span>
-                  <span className="meta-badge">Rating {restaurant.rating}/5</span>
+        <>
+          <p className="visited-list-heading">
+            Your list ({visitedRestaurants.length})
+          </p>
+
+          <div className="visited-list">
+            {visitedRestaurants.map((restaurant) => (
+              <div
+                key={restaurant.id}
+                className={`visited-item${editingId === restaurant.id ? " is-editing" : ""}`}
+              >
+                <div>
+                  <strong>{restaurant.name}</strong>
+                  <p>
+                    {restaurant.city}, {restaurant.country}
+                  </p>
+                  <div className="card-meta">
+                    <span className="meta-badge">{restaurant.cuisine}</span>
+                    <span className="meta-badge">
+                      Price {restaurant.price_level}/5
+                    </span>
+                    <span className="meta-badge">
+                      Rating {restaurant.rating}/5
+                    </span>
+                    <span
+                      className={`meta-badge ${restaurant.is_open ? "badge-open" : "badge-closed"}`}
+                    >
+                      {restaurant.is_open ? "Open" : "Closed"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="item-actions">
+                  <button
+                    className="primary-button sm-button"
+                    onClick={() => handleEditVisited(restaurant)}
+                  >
+                    Edit
+                  </button>
+
+                  <button
+                    className="danger-button sm-button"
+                    onClick={() => handleDeleteVisited(restaurant.id)}
+                  >
+                    Delete
+                  </button>
                 </div>
               </div>
-
-              <div className="item-actions">
-                <button
-                  className="primary-button"
-                  onClick={() => handleEditVisited(restaurant)}
-                >
-                  Edit
-                </button>
-
-                <button
-                  className="danger-button"
-                  onClick={() => handleDeleteVisited(restaurant.id)}
-                >
-                  Delete
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </section>
   );

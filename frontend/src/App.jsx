@@ -31,7 +31,7 @@ function App() {
 
       <header className="app-header">
         <h1>Restaurant Finder</h1>
-        <p>Discover restaurants and manage the places you visited.</p>
+        <p>Explore acclaimed restaurants from around the world. Save the ones you've been to.</p>
       </header>
 
       <main className="app-main">
