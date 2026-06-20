@@ -23,9 +23,15 @@ def _get_conn() -> sqlite3.Connection:
     return _conn
 
 
+def get_conn() -> Generator[sqlite3.Connection, None, None]:
+    """Yield the shared SQLite connection. Override in tests via dependency_overrides."""
+    yield _get_conn()
+
+
 def get_repository() -> Generator[RestaurantRepository, None, None]:
     """Provide the repository to route handlers via FastAPI DI."""
     yield RestaurantRepository(_get_conn())
 
 
+ConnDep = Annotated[sqlite3.Connection, Depends(get_conn)]
 RepositoryDep = Annotated[RestaurantRepository, Depends(get_repository)]

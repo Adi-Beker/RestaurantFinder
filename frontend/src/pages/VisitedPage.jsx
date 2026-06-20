@@ -243,7 +243,8 @@ function VisitedPage({ visitedRestaurants, onRefresh }) {
 
       {visitedRestaurants.length === 0 ? (
         <div className="empty-state">
-          <p>You have not added any visited restaurants yet.</p>
+          <span className="empty-state-icon">🍽</span>
+          <p>No restaurants in your list yet.</p>
           <p>Use the form above or add one from the Discover page.</p>
         </div>
       ) : (

@@ -1,5 +1,5 @@
-def test_health_returns_ok(client):
-    response = client.get("/health")
+def test_health_returns_ok(auth_client):
+    response = auth_client.get("/health")
     assert response.status_code == 200
 
     data = response.json()
@@ -7,8 +7,8 @@ def test_health_returns_ok(client):
     assert data["app"] == "Restaurant Finder"
 
 
-def test_create_restaurant_returns_201_and_payload(client):
-    response = client.post(
+def test_create_restaurant_returns_201_and_payload(auth_client):
+    response = auth_client.post(
         "/restaurants",
         json={
             "name": "La Piazza",
@@ -34,14 +34,14 @@ def test_create_restaurant_returns_201_and_payload(client):
     assert payload["is_open"] is True
 
 
-def test_list_restaurants_returns_empty_list_initially(client):
-    response = client.get("/restaurants")
+def test_list_restaurants_returns_empty_list_initially(auth_client):
+    response = auth_client.get("/restaurants")
     assert response.status_code == 200
     assert response.json() == []
 
 
-def test_list_restaurants_returns_created_restaurant(client):
-    client.post(
+def test_list_restaurants_returns_created_restaurant(auth_client):
+    auth_client.post(
         "/restaurants",
         json={
             "name": "La Piazza",
@@ -54,7 +54,7 @@ def test_list_restaurants_returns_created_restaurant(client):
         },
     )
 
-    response = client.get("/restaurants")
+    response = auth_client.get("/restaurants")
     assert response.status_code == 200
 
     restaurants = response.json()
@@ -62,8 +62,8 @@ def test_list_restaurants_returns_created_restaurant(client):
     assert restaurants[0]["name"] == "La Piazza"
 
 
-def test_get_restaurant_by_id(client):
-    create_response = client.post(
+def test_get_restaurant_by_id(auth_client):
+    create_response = auth_client.post(
         "/restaurants",
         json={
             "name": "Tokyo Table",
@@ -78,7 +78,7 @@ def test_get_restaurant_by_id(client):
 
     restaurant_id = create_response.json()["id"]
 
-    response = client.get(f"/restaurants/{restaurant_id}")
+    response = auth_client.get(f"/restaurants/{restaurant_id}")
     assert response.status_code == 200
 
     restaurant = response.json()
@@ -86,14 +86,14 @@ def test_get_restaurant_by_id(client):
     assert restaurant["name"] == "Tokyo Table"
 
 
-def test_get_missing_restaurant_returns_404(client):
-    response = client.get("/restaurants/999")
+def test_get_missing_restaurant_returns_404(auth_client):
+    response = auth_client.get("/restaurants/999")
     assert response.status_code == 404
     assert response.json()["detail"] == "Restaurant not found"
 
 
-def test_update_restaurant(client):
-    create_response = client.post(
+def test_update_restaurant(auth_client):
+    create_response = auth_client.post(
         "/restaurants",
         json={
             "name": "La Piazza",
@@ -108,7 +108,7 @@ def test_update_restaurant(client):
 
     restaurant_id = create_response.json()["id"]
 
-    update_response = client.put(
+    update_response = auth_client.put(
         f"/restaurants/{restaurant_id}",
         json={
             "name": "La Piazza Updated",
@@ -132,8 +132,8 @@ def test_update_restaurant(client):
     assert updated_restaurant["is_open"] is False
 
 
-def test_update_missing_restaurant_returns_404(client):
-    response = client.put(
+def test_update_missing_restaurant_returns_404(auth_client):
+    response = auth_client.put(
         "/restaurants/999",
         json={
             "name": "Unknown",
@@ -150,8 +150,8 @@ def test_update_missing_restaurant_returns_404(client):
     assert response.json()["detail"] == "Restaurant not found"
 
 
-def test_delete_restaurant(client):
-    create_response = client.post(
+def test_delete_restaurant(auth_client):
+    create_response = auth_client.post(
         "/restaurants",
         json={
             "name": "Ocean View",
@@ -166,21 +166,21 @@ def test_delete_restaurant(client):
 
     restaurant_id = create_response.json()["id"]
 
-    delete_response = client.delete(f"/restaurants/{restaurant_id}")
+    delete_response = auth_client.delete(f"/restaurants/{restaurant_id}")
     assert delete_response.status_code == 204
 
-    get_response = client.get(f"/restaurants/{restaurant_id}")
+    get_response = auth_client.get(f"/restaurants/{restaurant_id}")
     assert get_response.status_code == 404
 
 
-def test_delete_missing_restaurant_returns_404(client):
-    response = client.delete("/restaurants/999")
+def test_delete_missing_restaurant_returns_404(auth_client):
+    response = auth_client.delete("/restaurants/999")
     assert response.status_code == 404
     assert response.json()["detail"] == "Restaurant not found"
 
 
-def test_create_restaurant_rejects_invalid_price_level(client):
-    response = client.post(
+def test_create_restaurant_rejects_invalid_price_level(auth_client):
+    response = auth_client.post(
         "/restaurants",
         json={
             "name": "Cheap Eats",
@@ -196,8 +196,8 @@ def test_create_restaurant_rejects_invalid_price_level(client):
     assert response.status_code == 422
 
 
-def test_create_restaurant_rejects_invalid_rating(client):
-    response = client.post(
+def test_create_restaurant_rejects_invalid_rating(auth_client):
+    response = auth_client.post(
         "/restaurants",
         json={
             "name": "Bad Rating Place",
@@ -213,8 +213,8 @@ def test_create_restaurant_rejects_invalid_rating(client):
     assert response.status_code == 422
 
 
-def test_create_restaurant_rejects_missing_name(client):
-    response = client.post(
+def test_create_restaurant_rejects_missing_name(auth_client):
+    response = auth_client.post(
         "/restaurants",
         json={
             "city": "Tel Aviv",
@@ -229,7 +229,7 @@ def test_create_restaurant_rejects_missing_name(client):
     assert response.status_code == 422
 
 
-def test_create_duplicate_restaurant_returns_409(client):
+def test_create_duplicate_restaurant_returns_409(auth_client):
     payload = {
         "name": "La Piazza",
         "city": "Tel Aviv",
@@ -240,15 +240,15 @@ def test_create_duplicate_restaurant_returns_409(client):
         "is_open": True,
     }
 
-    client.post("/restaurants", json=payload)
-    response = client.post("/restaurants", json=payload)
+    auth_client.post("/restaurants", json=payload)
+    response = auth_client.post("/restaurants", json=payload)
 
     assert response.status_code == 409
     assert "already exists" in response.json()["detail"]
 
 
-def test_create_duplicate_is_case_insensitive(client):
-    client.post(
+def test_create_duplicate_is_case_insensitive(auth_client):
+    auth_client.post(
         "/restaurants",
         json={
             "name": "La Piazza",
@@ -261,7 +261,7 @@ def test_create_duplicate_is_case_insensitive(client):
         },
     )
 
-    response = client.post(
+    response = auth_client.post(
         "/restaurants",
         json={
             "name": "la piazza",
@@ -277,8 +277,8 @@ def test_create_duplicate_is_case_insensitive(client):
     assert response.status_code == 409
 
 
-def test_update_to_duplicate_returns_409(client):
-    client.post(
+def test_update_to_duplicate_returns_409(auth_client):
+    auth_client.post(
         "/restaurants",
         json={
             "name": "La Piazza",
@@ -291,7 +291,7 @@ def test_update_to_duplicate_returns_409(client):
         },
     )
 
-    create_response = client.post(
+    create_response = auth_client.post(
         "/restaurants",
         json={
             "name": "Tokyo Table",
@@ -306,7 +306,7 @@ def test_update_to_duplicate_returns_409(client):
 
     restaurant_id = create_response.json()["id"]
 
-    response = client.put(
+    response = auth_client.put(
         f"/restaurants/{restaurant_id}",
         json={
             "name": "La Piazza",

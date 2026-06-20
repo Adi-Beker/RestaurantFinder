@@ -1,83 +1,258 @@
 # Restaurant Finder
 
 ## Description
-Restaurant Finder is a full-stack web application for discovering recommended restaurants and managing a personal list of restaurants the user has visited.
 
-The project is built with a FastAPI backend and a React frontend that communicates only with the backend API.
+Restaurant Finder is a full-stack web application for discovering restaurants across Israel, managing a personal visited list, and receiving AI-powered restaurant recommendations.
+
+The project is built with a **FastAPI** backend, a **React** frontend, **SQLite** for persistence, **Redis** for caching and job queuing, an **Arq** background worker for dining-summary jobs, and a dedicated **AI microservice** for constrained restaurant recommendations.
+
+## Why this project is interesting
+
+Restaurant Finder combines several ideas into one polished product:
+
+* a multi-service architecture with backend, worker, Redis, frontend, and AI service
+* a shared Israeli restaurant discovery catalogue
+* per-user restaurant management
+* background dining-summary jobs
+* constrained AI recommendations that work only from the app’s catalogue
+
+The result is not just a CRUD application, but a complete product flow with authentication, async processing, AI integration, and a refined user interface.
 
 ---
 
-## EX2 Scope
-This submission covers:
-- **Stage A**: FastAPI backend with CRUD, validation, duplicate prevention, and automated tests
-- **Stage B**: React frontend with Discover and My Visited pages
-- **Persistence**: SQLite database — data survives backend restarts
+## EX3 Scope
 
-Not included (out of scope for EX2):
-- authentication or user accounts
-- external database services such as PostgreSQL or MySQL
-- Redis, background workers, or EX3-style service orchestration
+This submission covers the full EX3 feature set and its final product refinements:
 
-The EX2 "small extra" is implemented through cuisine filtering and duplicate prevention in the visited list flow.
+* **Authentication**: JWT-based user accounts (register, login, me, admin)
+* **Per-user restaurants**: all CRUD operations are scoped to the authenticated user
+* **Background jobs**: Arq worker computes a personalized dining summary on demand
+* **Refresh job API**: `POST /refresh-jobs` + `GET /refresh-jobs/{job_id}` with idempotency and ownership checks
+* **Refresh script**: `scripts/refresh.py` — async Typer CLI with retries and tracing
+* **AI recommendation service**: separate `ai_service` that recommends restaurants only from the Israeli discover catalogue
+* **Discover catalogue**: backend-served Israeli restaurant catalogue with seeded data and optional OSM/Overpass ingestion
+* **Frontend auth UI**: login, register, protected routes, logout
+* **Frontend Discover UI**: city filter, search, cuisine filtering, add-to-visited, AI recommendation, dining summary
+* **Theme support**: polished light/dark mode
+* **Docker Compose**: Redis, backend, worker, frontend, and AI service orchestrated together
 
 ---
 
 ## Features
 
 ### Backend
-- FastAPI REST API
-- full CRUD for restaurants (`GET`, `POST`, `PUT`, `DELETE`)
-- input validation with Pydantic (required fields, price_level 1–5, rating 1.0–5.0)
-- text normalization (trim + title-case on name, city, country, cuisine)
-- duplicate prevention — same name + city + country rejected with 409, case-insensitive
-- SQLite persistence via Python's built-in `sqlite3` — no extra packages needed
-- dependency injection pattern for the repository
-- Swagger / OpenAPI docs at `/docs`
-- automated tests with pytest (16 tests, all using isolated in-memory SQLite)
+
+* FastAPI REST API
+* JWT authentication (HS256, `iss` / `aud` / `sub` / `role` / `exp` claims, 30-minute expiry)
+* bcrypt password hashing via passlib
+* role-based access control (`user` / `admin`)
+* per-user restaurant CRUD with duplicate prevention scoped per user
+* Redis rate limiting on `POST /token`
+* Idempotency-Key support on `POST /refresh-jobs`
+* refresh job ownership checks
+* SQLite persistence via Python’s built-in `sqlite3`
+* Discover catalogue API:
+
+  * `GET /discover/cities`
+  * `GET /discover/restaurants`
+* AI recommendation API:
+
+  * constrained to the Israeli discover catalogue
+  * excludes already visited restaurants
+  * excludes previously suggested restaurants when asking again
+
+### Worker
+
+* Arq background worker (`worker/main.py`)
+* `refresh_restaurants_task` groups restaurants by cuisine, computes average rating, finds highest-rated, and returns a personalized dining summary
+* writes job status (`pending` → `running` → `done` / `failed`) to Redis
+
+### AI Service
+
+* dedicated FastAPI microservice (`ai_service`)
+* receives filtered Israeli candidate restaurants from the backend
+* uses Gemini with constrained selection logic
+* never recommends restaurants outside the provided candidate list
+* excludes visited and previously suggested restaurants
+* fallback logic also respects the same exclusions
+
+### Discover Catalogue
+
+* shared catalogue of Israeli restaurants stored in `discover_restaurants`
+* seeded with curated Israeli restaurants for cold start
+* optional ingestion from OpenStreetMap / Overpass via `scripts/ingest_discover.py`
+* supports multiple cities from the start:
+
+  * Tel Aviv
+  * Jerusalem
+  * Haifa
+  * Ashdod
+
+### Scripts
+
+* `scripts/refresh.py`: async Typer CLI for triggering dining-summary jobs
+* `scripts/ingest_discover.py`: Typer CLI for ingesting Israeli restaurant data into the discover catalogue
 
 ### Frontend
-- React 19 + Vite
-- Navbar with active-link highlighting
-- **Discover page**: browse a curated list of top restaurants, search by name, filter by country, filter by cuisine, add to My Visited
-- **My Visited page**: view, create, edit, and delete visited restaurants; shows cuisine, price level, rating, and open/closed status per entry
-- duplicate restaurants shown as disabled in Discover once added
-- error and success feedback messages in the UI
+
+* React + Vite
+* Login and Register pages with validation/error handling
+* protected routes
+* navbar with user greeting, theme toggle, and logout
+* **Discover page**:
+
+  * browse restaurants from the backend catalogue
+  * filter by city
+  * search by name
+  * filter by cuisine
+  * add restaurants to visited
+  * request AI recommendation
+  * ask again for a different recommendation
+  * run **Analyze My Dining Summary**
+* **My Visited page**:
+
+  * create, edit, and delete personal restaurant entries
+* **Profile page with password change flow**
+* refined **light and dark mode**
+* Sign In page with styled restaurant-image background
 
 ### Infrastructure
-- Docker support for backend and frontend independently
-- Docker Compose to run both together with a single command
-- named Docker volume so data persists across container restarts
+
+* Docker Compose with **five services**:
+
+  * redis
+  * backend
+  * worker
+  * frontend
+  * ai_service
+* Redis healthcheck (`redis-cli ping`)
+* backend healthcheck (`curl /health`)
+* AI service healthcheck (`curl /health`)
+* `depends_on: condition: service_healthy` for startup order
+* named Docker volumes for SQLite and Redis data
+
+---
+
+## Screenshots
+
+The following screenshots present the main user flows and UI states of the application.
+
+### Discover Page — Light Mode
+
+*Shows the main discover experience, the Israeli restaurant catalogue, filters, and the main user actions.*
+
+![Discover Light](./docs/screenshots/discover-light.png)
+
+### Discover Page — Dark Mode
+
+*Shows the dark theme variation of the main discover experience.*
+
+![Discover Dark](./docs/screenshots/discover-dark.png)
+
+### My Visited Page
+
+*Shows the personal visited restaurants area, including add, edit, and delete actions.*
+
+![My Visited](./docs/screenshots/my-visited.png)
+
+### Sign In Page
+
+*Shows the authentication page with the restaurant-inspired background design.*
+
+![Sign In](./docs/screenshots/sign-in.png)
+
+### Profile Page
+
+*Shows the user profile area, including account details and the change-password functionality.*
+
+![Profile Page](./docs/screenshots/profile-page.png)
+
+---
+
+## Quick Start
+
+Run the full application with Docker Compose:
+
+```bash
+docker compose up --build
+```
+
+Then:
+
+1. Open the frontend at `http://localhost:5173`
+2. Register a new user
+3. Browse restaurants by city on the Discover page
+4. Add restaurants to your visited list
+5. Test **AI Recommendation**
+6. Test **Analyze My Dining Summary**
 
 ---
 
 ## Prerequisites
-- Python 3.13
-- [`uv`](https://docs.astral.sh/uv/) (Python package manager)
-- Node.js and npm
-- Docker Desktop (only needed for Docker Compose)
+
+* Python 3.13
+* [`uv`](https://docs.astral.sh/uv/)
+* Node.js and npm
+* Docker Desktop
 
 ---
 
-## Run the Backend Locally
+## Run with Docker Compose
 
-From the project root:
+```bash
+docker compose up --build
+```
+
+| Service    | URL                        |
+| ---------- | -------------------------- |
+| Frontend   | http://localhost:5173      |
+| Backend    | http://localhost:8000      |
+| API docs   | http://localhost:8000/docs |
+| AI service | http://localhost:8001      |
+
+---
+
+## Demo Flow
+
+A quick end-to-end demo path for the application:
+
+1. Register or sign in
+2. Browse restaurants by city
+3. Add one or more restaurants to **My Visited**
+4. Request an **AI Recommendation**
+5. Click **Ask again** to receive a different recommendation
+6. Run **Analyze My Dining Summary** to generate the personalized dining summary
+7. Open **Profile** and test the password-change flow
+
+---
+
+Local demo helper:
+
+```bash
+bash scripts/demo.sh
+
+## Run the Backend Locally
 
 ```bash
 uv run uvicorn app.main:app --reload
 ```
 
-The backend starts at `http://127.0.0.1:8000`.
-
-The SQLite database file (`restaurants.db`) is created automatically at the project root on the first request. It is excluded from Git via `.gitignore`.
+Requires Redis on `localhost:6379` unless `REDIS_URL` is overridden.
 
 ---
 
-## Backend API Documentation
+## Run the Worker Locally
 
-FastAPI generates interactive docs automatically:
-
+```bash
+uv run arq worker.main.WorkerSettings
 ```
-http://127.0.0.1:8000/docs
+
+---
+
+## Run the AI Service Locally
+
+```bash
+uv run uvicorn ai_service.main:app --reload --port 8001
 ```
 
 ---
@@ -85,86 +260,95 @@ http://127.0.0.1:8000/docs
 ## Run Backend Tests
 
 ```bash
-uv run pytest tests/ -v
+uv run pytest -v
 ```
 
-All 16 tests pass. Each test uses a fresh isolated in-memory SQLite database — the on-disk `restaurants.db` is never touched by the test suite.
+Current backend test suite: **122 tests, all passing**.
 
 ---
 
 ## Run the Frontend Locally
 
-From the `frontend/` directory:
-
 ```bash
+cd frontend
 npm install
 npm run dev
 ```
 
-The frontend starts at `http://127.0.0.1:5173`.
-
-The frontend expects the backend to be running at `http://127.0.0.1:8000`. This is the default and requires no configuration.
+Frontend starts at `http://localhost:5173`.
 
 ---
 
-## Run Both Together with Docker Compose
-
-From the project root:
+## Run the Refresh Script
 
 ```bash
-docker compose up --build
+uv run python -m scripts.refresh --url http://localhost:8000 --token <your_token>
 ```
 
-| Service  | URL                        |
-|----------|----------------------------|
-| Frontend | http://127.0.0.1:5173      |
-| Backend  | http://127.0.0.1:8000      |
-| API docs | http://127.0.0.1:8000/docs |
+---
 
-In Docker, the database is stored at `/data/restaurants.db` inside the backend container, backed by the `restaurant_data` named volume. Data survives `docker compose down` (use `docker compose down --volumes` to also remove the data).
+## Run the Discover Ingest Script
+
+```bash
+uv run python -m scripts.ingest_discover
+```
+
+Examples:
+
+```bash
+uv run python -m scripts.ingest_discover --city "Tel Aviv"
+uv run python -m scripts.ingest_discover --city "Jerusalem" --city "Haifa"
+```
 
 ---
 
 ## API Endpoints
 
-| Method   | Path                        | Description                  |
-|----------|-----------------------------|------------------------------|
-| `GET`    | `/health`                   | Health check                 |
-| `GET`    | `/restaurants`              | List all restaurants         |
-| `POST`   | `/restaurants`              | Create a restaurant          |
-| `GET`    | `/restaurants/{id}`         | Get a restaurant by ID       |
-| `PUT`    | `/restaurants/{id}`         | Update a restaurant          |
-| `DELETE` | `/restaurants/{id}`         | Delete a restaurant          |
-
-### Example request body
-
-```json
-{
-  "name": "La Piazza",
-  "city": "tel aviv",
-  "country": "israel",
-  "cuisine": "italian",
-  "price_level": 3,
-  "rating": 4.5,
-  "is_open": true
-}
-```
-
-Text fields are normalized server-side (trimmed and title-cased). Submitting `"city": "tel aviv"` stores and returns `"city": "Tel Aviv"`.
+| Method   | Path                    | Auth  | Description                                                    |
+| -------- | ----------------------- | ----- | -------------------------------------------------------------- |
+| `POST`   | `/auth/register`        | —     | Register a new user                                            |
+| `POST`   | `/token`                | —     | Login and get JWT                                              |
+| `GET`    | `/auth/me`              | User  | Current user info                                              |
+| `GET`    | `/admin/users`          | Admin | List all users                                                 |
+| `GET`    | `/health`               | —     | Health check                                                   |
+| `GET`    | `/restaurants`          | User  | List my restaurants                                            |
+| `POST`   | `/restaurants`          | User  | Add a restaurant                                               |
+| `GET`    | `/restaurants/{id}`     | User  | Get a restaurant                                               |
+| `PUT`    | `/restaurants/{id}`     | User  | Update a restaurant                                            |
+| `DELETE` | `/restaurants/{id}`     | User  | Delete a restaurant                                            |
+| `POST`   | `/refresh-jobs`         | User  | Enqueue a dining-summary job                                   |
+| `GET`    | `/refresh-jobs/{id}`    | User  | Poll job status                                                |
+| `GET`    | `/discover/cities`      | User  | List available discover cities                                 |
+| `GET`    | `/discover/restaurants` | User  | List discover restaurants, optionally filtered by city         |
+| `GET`    | `/ai/recommendation`    | User  | Get an AI restaurant recommendation from the Israeli catalogue |
+| `POST`   | `/auth/change-password` | User  | Change current user password                                   |
 
 ---
 
-## Database
+## Environment Variables
 
-The backend uses **SQLite** via Python's built-in `sqlite3` module. No extra packages or setup is required.
+| Variable         | Default                                                      | Purpose                               |
+| ---------------- | ------------------------------------------------------------ | ------------------------------------- |
+| `DB_PATH`        | `restaurants.db` (local) / `/data/restaurants.db` (Docker)   | SQLite file location                  |
+| `REDIS_URL`      | `redis://localhost:6379`                                     | Redis connection string               |
+| `JWT_SECRET`     | `dev-secret-do-not-use-in-production!!`                      | JWT signing key                       |
+| `AI_SERVICE_URL` | `http://ai_service:8001` (Docker) / local override as needed | Backend → AI service URL              |
+| `GEMINI_API_KEY` | —                                                            | Gemini API key for AI recommendations |
 
-| Context          | Database location                                    |
-|------------------|------------------------------------------------------|
-| Local dev        | `restaurants.db` in the project root (auto-created)  |
-| Docker Compose   | `/data/restaurants.db` in the container (named volume) |
-| Tests            | `:memory:` — fresh isolated DB per test, never on disk |
+---
 
-`restaurants.db` is listed in `.gitignore` and should not be committed.
+## Architecture Overview
+
+```text
+Frontend (React/Vite)
+        │
+        ▼
+Backend (FastAPI)
+   ├── SQLite (application data)
+   ├── Redis (rate limiting, idempotency, job state)
+   ├── Worker (Arq background jobs)
+   └── AI Service (Gemini-based constrained recommendations)
+```
 
 ---
 
@@ -172,76 +356,117 @@ The backend uses **SQLite** via Python's built-in `sqlite3` module. No extra pac
 
 ```text
 RestaurantFinder/
-|-- app/
-|   |-- __init__.py
-|   |-- main.py            # FastAPI app and routes
-|   |-- models.py          # Pydantic models
-|   |-- database.py        # SQLite connection and schema init
-|   |-- repository.py      # CRUD queries
-|   `-- dependencies.py    # FastAPI dependency injection
-|-- frontend/
-|   |-- src/
-|   |   |-- components/
-|   |   |   `-- Navbar.jsx
-|   |   |-- data/
-|   |   |   `-- restaurantsData.js   # curated discover list
-|   |   |-- pages/
-|   |   |   |-- DiscoverPage.jsx
-|   |   |   `-- VisitedPage.jsx
-|   |   |-- api.js         # fetch wrappers for backend calls
-|   |   |-- App.jsx
-|   |   |-- App.css
-|   |   `-- main.jsx
-|   |-- index.html
-|   |-- package.json
-|   `-- vite.config.js
-|-- tests/
-|   |-- __init__.py
-|   |-- conftest.py        # per-test in-memory SQLite fixture
-|   `-- test_restaurants.py
-|-- .dockerignore
-|-- .gitignore
-|-- backend.Dockerfile
-|-- frontend.Dockerfile
-|-- docker-compose.yml
-|-- pyproject.toml
-|-- README.md
-|-- plan.md
-|-- restaurant_requests.http
-`-- uv.lock
+├── ai_service/
+│   ├── gemini_client.py
+│   ├── main.py
+│   └── models.py
+├── app/
+│   ├── ai_client.py
+│   ├── auth.py
+│   ├── database.py
+│   ├── dependencies.py
+│   ├── discover_repo.py
+│   ├── discover_seed.py
+│   ├── main.py
+│   ├── models.py
+│   ├── redis.py
+│   └── repository.py
+├── worker/
+│   └── main.py
+├── scripts/
+│   ├── ingest_discover.py
+│   └── refresh.py
+├── frontend/
+│   └── src/
+│       ├── components/
+│       │   ├── Navbar.jsx
+│       │   └── ProtectedRoute.jsx
+│       ├── pages/
+│       │   ├── DiscoverPage.jsx
+│       │   ├── VisitedPage.jsx
+│       │   ├── LoginPage.jsx
+│       │   ├── RegisterPage.jsx
+│       │   └── ProfilePage.jsx
+│       ├── api.js
+│       ├── App.jsx
+│       ├── App.css
+│       └── main.jsx
+├── tests/
+│   ├── conftest.py
+│   ├── test_ai_recommendation.py
+│   ├── test_auth.py
+│   ├── test_discover_api.py
+│   ├── test_discover_seed.py
+│   ├── test_gemini_client.py
+│   ├── test_ingest_discover.py
+│   ├── test_rate_limit.py
+│   ├── test_refresh.py
+│   ├── test_refresh_script.py
+│   ├── test_restaurants.py
+│   ├── test_user_isolation.py
+│   └── test_worker.py
+├── docs/
+│   ├── EX3-notes.md
+│   ├── service-contract.md
+│   ├── security-checklist.md
+│   └── runbooks/
+│       └── compose.md
+├── backend.Dockerfile
+├── ai_service.Dockerfile
+├── frontend.Dockerfile
+├── docker-compose.yml
+├── pyproject.toml
+├── plan.md
+└── README.md
 ```
 
 ---
 
-## REST Client Requests
+## Documentation
 
-`restaurant_requests.http` contains sample HTTP requests for all endpoints. Use it with the REST Client extension in VS Code.
+| File                         | Contents                                              |
+| ---------------------------- | ----------------------------------------------------- |
+| `docs/EX3-notes.md`          | Design decisions, library rationale, migration notes  |
+| `docs/service-contract.md`   | Endpoints, request/response shapes, status codes      |
+| `docs/security-checklist.md` | Security decisions and out-of-scope items             |
+| `docs/runbooks/compose.md`   | Startup, health checks, logs, stop/reset instructions |
 
 ---
 
 ## AI Assistance
 
-This project was developed with assistance from **Claude** (Anthropic), an AI coding assistant, via the Claude Code CLI tool.
+This project was developed with assistance from **Claude** via Claude Code CLI.
 
 ### What AI was used for
 
-AI assistance was used for the following tasks across EX2:
-
-- **SQLite migration**: designing and implementing `app/database.py`, rewriting `app/repository.py` from in-memory to SQLite queries, and updating `app/dependencies.py` with lazy connection initialization
-- **Test infrastructure**: updating `tests/conftest.py` to use per-test in-memory SQLite databases with FastAPI `dependency_overrides`
-- **UI/UX improvements**: refining `App.css` with a restaurant-themed color palette (warm amber, espresso tones), updating `DiscoverPage.jsx` and `VisitedPage.jsx` with labeled form fields and better layout, and adding Playfair Display typography
-- **Documentation**: drafting sections of `README.md` and `plan.md`
+* backend milestone implementation
+* Redis / worker integration
+* AI microservice integration
+* Discover catalogue ingestion flow
+* frontend UI refinements
+* documentation and test scaffolding
 
 ### How outputs were verified
 
-AI-generated code was reviewed and tested before being accepted into the project:
+* `uv run pytest -v`
+* manual browser smoke testing:
 
-- `uv run pytest tests/ -v` was run after every backend change — all 16 tests pass
-- The backend was verified via the Swagger UI at `/docs` and the `restaurant_requests.http` file
-- The frontend was exercised manually through the Discover and My Visited pages, including search, filters, add, edit, delete, and duplicate prevention flows
-- Docker Compose was verified with `docker compose up --build`
+  * register / login / logout
+  * Discover page
+  * city switching
+  * search / cuisine filtering
+  * add to visited
+  * dining summary
+  * AI recommendation
+  * ask again
+  * dark/light theme
+  * Profile / change password
+  * My Visited page
+* `docker compose up --build`
+* frontend build via `npm run build`
 
 ---
 
 ## Author
+
 Adi Beker

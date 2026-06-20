@@ -11,26 +11,29 @@ class RestaurantRepository:
 
     # ── Queries ──────────────────────────────────────────────────────────────
 
-    def list(self) -> list[Restaurant]:
+    def list(self, user_id: int) -> list[Restaurant]:
         rows = self._conn.execute(
-            "SELECT * FROM restaurants ORDER BY id"
+            "SELECT * FROM restaurants WHERE user_id = ? ORDER BY id",
+            (user_id,),
         ).fetchall()
         return [_to_restaurant(row) for row in rows]
 
-    def get(self, restaurant_id: int) -> Restaurant | None:
+    def get(self, restaurant_id: int, user_id: int) -> Restaurant | None:
         row = self._conn.execute(
-            "SELECT * FROM restaurants WHERE id = ?", (restaurant_id,)
+            "SELECT * FROM restaurants WHERE id = ? AND user_id = ?",
+            (restaurant_id, user_id),
         ).fetchone()
         return _to_restaurant(row) if row else None
 
-    def create(self, payload: RestaurantCreate) -> Restaurant:
-        if self._is_duplicate(payload.name, payload.city, payload.country):
+    def create(self, payload: RestaurantCreate, user_id: int) -> Restaurant:
+        if self._is_duplicate(payload.name, payload.city, payload.country, user_id):
             raise ValueError("Restaurant already exists in your visited list")
 
         cursor = self._conn.execute(
             """
-            INSERT INTO restaurants (name, city, country, cuisine, price_level, rating, is_open)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO restaurants
+                (name, city, country, cuisine, price_level, rating, is_open, user_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 payload.name,
@@ -40,6 +43,7 @@ class RestaurantRepository:
                 payload.price_level,
                 payload.rating,
                 int(payload.is_open),
+                user_id,
             ),
         )
         self._conn.commit()
@@ -48,18 +52,22 @@ class RestaurantRepository:
         ).fetchone()
         return _to_restaurant(row)
 
-    def update(self, restaurant_id: int, payload: RestaurantCreate) -> Restaurant | None:
-        if self.get(restaurant_id) is None:
+    def update(
+        self, restaurant_id: int, payload: RestaurantCreate, user_id: int
+    ) -> Restaurant | None:
+        if self.get(restaurant_id, user_id) is None:
             return None
 
-        if self._is_duplicate(payload.name, payload.city, payload.country, exclude_id=restaurant_id):
+        if self._is_duplicate(
+            payload.name, payload.city, payload.country, user_id, exclude_id=restaurant_id
+        ):
             raise ValueError("Restaurant already exists in your visited list")
 
         self._conn.execute(
             """
             UPDATE restaurants
                SET name=?, city=?, country=?, cuisine=?, price_level=?, rating=?, is_open=?
-             WHERE id=?
+             WHERE id=? AND user_id=?
             """,
             (
                 payload.name,
@@ -70,20 +78,21 @@ class RestaurantRepository:
                 payload.rating,
                 int(payload.is_open),
                 restaurant_id,
+                user_id,
             ),
         )
         self._conn.commit()
-        return self.get(restaurant_id)
+        return self.get(restaurant_id, user_id)
 
-    def delete(self, restaurant_id: int) -> bool:
+    def delete(self, restaurant_id: int, user_id: int) -> bool:
         cursor = self._conn.execute(
-            "DELETE FROM restaurants WHERE id = ?", (restaurant_id,)
+            "DELETE FROM restaurants WHERE id = ? AND user_id = ?",
+            (restaurant_id, user_id),
         )
         self._conn.commit()
         return cursor.rowcount > 0
 
     def clear(self) -> None:
-        """Delete all rows. Used by tests to reset state between runs."""
         self._conn.execute("DELETE FROM restaurants")
         self._conn.commit()
 
@@ -94,9 +103,9 @@ class RestaurantRepository:
         name: str,
         city: str,
         country: str,
+        user_id: int,
         exclude_id: int | None = None,
     ) -> bool:
-        """Return True if a restaurant with the same name/city/country exists."""
         if exclude_id is None:
             row = self._conn.execute(
                 """
@@ -104,8 +113,9 @@ class RestaurantRepository:
                  WHERE LOWER(name)    = LOWER(?)
                    AND LOWER(city)    = LOWER(?)
                    AND LOWER(country) = LOWER(?)
+                   AND user_id = ?
                 """,
-                (name, city, country),
+                (name, city, country, user_id),
             ).fetchone()
         else:
             row = self._conn.execute(
@@ -114,9 +124,10 @@ class RestaurantRepository:
                  WHERE LOWER(name)    = LOWER(?)
                    AND LOWER(city)    = LOWER(?)
                    AND LOWER(country) = LOWER(?)
+                   AND user_id = ?
                    AND id != ?
                 """,
-                (name, city, country, exclude_id),
+                (name, city, country, user_id, exclude_id),
             ).fetchone()
         return row is not None
 

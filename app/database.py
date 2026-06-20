@@ -18,7 +18,18 @@ def get_connection(path: str | Path = DB_PATH) -> sqlite3.Connection:
 
 
 def init_schema(conn: sqlite3.Connection) -> None:
-    """Create the restaurants table if it does not exist."""
+    """Create all tables if they do not exist."""
+    # users must be created before restaurants (FK dependency).
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS users (
+            id            INTEGER PRIMARY KEY,
+            username      TEXT    NOT NULL UNIQUE,
+            password_hash TEXT    NOT NULL,
+            role          TEXT    NOT NULL DEFAULT 'user'
+        )
+        """
+    )
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS restaurants (
@@ -29,8 +40,33 @@ def init_schema(conn: sqlite3.Connection) -> None:
             cuisine     TEXT    NOT NULL,
             price_level INTEGER NOT NULL,
             rating      REAL    NOT NULL,
-            is_open     INTEGER NOT NULL
+            is_open     INTEGER NOT NULL,
+            user_id     INTEGER NOT NULL REFERENCES users(id)
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS discover_restaurants (
+            id           INTEGER PRIMARY KEY,
+            osm_id       TEXT    NOT NULL UNIQUE,
+            name         TEXT    NOT NULL,
+            city         TEXT    NOT NULL,
+            country      TEXT    NOT NULL DEFAULT 'Israel',
+            cuisine      TEXT    NOT NULL,
+            address      TEXT    NOT NULL DEFAULT '',
+            lat          REAL    NOT NULL DEFAULT 0.0,
+            lon          REAL    NOT NULL DEFAULT 0.0,
+            price_level  INTEGER NOT NULL DEFAULT 3,
+            rating       REAL    NOT NULL DEFAULT 4.0,
+            is_open      INTEGER NOT NULL DEFAULT 1,
+            last_updated TEXT    NOT NULL DEFAULT ''
         )
         """
     )
     conn.commit()
+
+    from app.discover_seed import seed_discover_restaurants
+    count = conn.execute("SELECT COUNT(*) FROM discover_restaurants").fetchone()[0]
+    if count == 0:
+        seed_discover_restaurants(conn)
